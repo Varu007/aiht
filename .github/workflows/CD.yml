@@ -1,6 +1,6 @@
 name: CD Pipeline
 
-# Only trigger, when the build workflow succeeded i.e. CI Pipeline
+# Trigger this only when your CI Pipeline finishes successfully
 on:
   workflow_run:
     workflows: ["CI Pipeline"]
@@ -12,15 +12,28 @@ jobs:
     runs-on: self-hosted
 
     steps:
+      # 1) log in to Docker Hub so you can pull private images (skip if your image is public)
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USER_NAME }}
+          password: ${{ secrets.DOCKER_USER_PASSWORD }}
+
+      # 2) pull the new image
       - name: Pull Docker Image
-        env: 
-          DOCKER_USER: ${{ secrets.DOCKER_USER_NAME }}
-        run: sudo docker pull $DOCKER_USER/titanic-fastapi:latest
-    
-      - name: Delete Old Docker Container
-        run: sudo docker rm -f titanic-fastapi-container || true
-    
-      - name: Run Docker Container
-        env: 
-          DOCKER_USER: ${{ secrets.DOCKER_USER_NAME }}
-        run: sudo docker run -it -d -p 8001:8001 --name titanic-fastapi-container $DOCKER_USER/titanic-fastapi:latest
+        run: |
+          docker pull ${{ secrets.DOCKER_USER_NAME }}/titanic-fastapi:latest
+
+      # 3) stop & remove the old container (ignore errors if it isn’t there)
+      - name: Stop & Remove Old Container
+        run: |
+          docker rm -f titanic-fastapi-container || true
+
+      # 4) run the new container in detached mode
+      - name: Run New Container
+        run: |
+          docker run -d \
+            -p 8001:8001 \
+            --name titanic-fastapi-container \
+            ${{ secrets.DOCKER_USER_NAME }}/titanic-fastapi:latest
+
